@@ -1,0 +1,9 @@
+boto3
+requests
+Pillow
+tqdm
+tensorflow
+opencv-python-headless
+matplotlib
+numpy
+tensorrt
