@@ -1,34 +1,23 @@
-# Use the official Python 3.12 image
-FROM python:3.12
+# Use an official TensorFlow Docker image as the base
+FROM tensorflow/tensorflow:2.15.0-gpu
 
 # Upgrade pip
 RUN python -m pip install --upgrade pip
+RUN python3 -m pip install wheel
 
-
-# Install system dependencies
+# Install additional system dependencies if needed
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     imagemagick \
-    gnupg2 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Add NVIDIA's package repository
-RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-ubuntu2004.pin
-RUN mv cuda-ubuntu2004.pin /etc/apt/preferences.d/cuda-repository-pin-600
-RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/7fa2af80.pub
-RUN echo "deb http://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64 /" > /etc/apt/sources.list.d/cuda.list
-
-# Install TensorRT packages
-RUN apt-get update && apt-get install -y \
-    libnvinfer8 \
-    libnvinfer-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
 
 # Copy the local code to the container image
-COPY . /app
+# COPY . /app
+COPY lambda_function.py /app
+COPY requirements.txt /app
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt

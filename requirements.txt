@@ -6,4 +6,3 @@ tensorflow
 opencv-python-headless
 matplotlib
 numpy
-tensorrt

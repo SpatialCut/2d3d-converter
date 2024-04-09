@@ -129,14 +129,7 @@ def convertimage(imagepath, converter):
     return img[0, :, :, :], predictedimage[0, :, :, :].clip(0, 255)
 
 
-def lambda_handler(event, context):
-    # Get the S3 bucket and key from the event
-    s3_bucket = event['Records'][0]['s3']['bucket']['name']
-    s3_key = event['Records'][0]['s3']['object']['key']
-
-    # Initialize S3 client
-    s3 = boto3.client('s3')
-
+def main():
     linkurl = 'http://aidle.org/js/nns/nonsymmdensenet2_freezed640_0.072_01-0.063.h5'
     Ans = urllib.request.urlretrieve(linkurl, 'nueral2d3d.h5')
     BilinearUpSampling2D = tf.keras.layers.UpSampling2D(size=(2, 2), data_format=None, interpolation='bilinear')
@@ -148,21 +141,26 @@ def lambda_handler(event, context):
     try:
         # Download the MP4 file from S3 to /tmp directory in Lambda
         local_filename = 'inputvideo.mp4'
-        s3.download_file(s3_bucket, s3_key, local_filename)
 
         # Process the video (assuming you have a function named convertvideo)
-        output_filename = 'output.mp4'
+        output_filename = '/tmp/output.mp4'
         frame = convertvideo(local_filename, downfromup, output_filename, size=(640, 640))
 
-        # Upload the processed video back to S3
-        s3.upload_file(output_filename, s3_bucket, 'output/' + s3_key.split('/')[-1])
+        # # Upload the processed video back to S3
+        # s3.upload_file(output_filename, s3_bucket, 'output/' + s3_key.split('/')[-1])
 
-        return {
-            'statusCode': 200,
-            'body': 'Video processed and uploaded successfully'
-        }
+        # return {
+        #     'statusCode': 200,
+        #     'body': 'Video processed and uploaded successfully'
+        # }
+        print('processed')
     except Exception as e:
-        return {
-            'statusCode': 400,
-            'body': str(e)
-        }
+        # return {
+        #     'statusCode': 400,
+        #     'body': str(e)
+        # }
+        print(str(e))
+
+
+if __name__ == "__main__":
+    main()
