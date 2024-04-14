@@ -11,16 +11,13 @@ RUN apt-get update && apt-get install -y \
     imagemagick \
     && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
+
 WORKDIR /app
-
-# Copy the local code to the container image
-# COPY . /app
-COPY lambda_function.py /app
+COPY inputvideo.mp4 /app
 COPY requirements.txt /app
-
-# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Run the Lambda handler command
-CMD ["python", "lambda_function.py"]
+COPY process_video.py /app
+
+
+ENTRYPOINT ["python", "process_video.py"]
