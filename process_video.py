@@ -178,8 +178,8 @@ def process_video(local_filename: str, output_filename: str):
         print(str(e))
 
 
-@app.post("/process-video")
-def process_video_endpoint(payload: RequestPayload):
+@app.post("/invocations")
+def invocations(payload: RequestPayload):
     # Extract local_filename and output_filename from the request payload
     local_filename = payload.local_filename
     output_filename = payload.output_filename
@@ -189,11 +189,6 @@ def process_video_endpoint(payload: RequestPayload):
 
     # Return the output_filename as a JSON response
     return JSONResponse({"output_filename": result})
-
-# Add a health check endpoint
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy"}
 
 
 # Define the /ping endpoint
