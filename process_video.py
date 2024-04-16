@@ -28,11 +28,11 @@ import time
 import traceback
 import json
 import uvicorn
-from boto3.s3 import Client
+import boto3
 
 app = FastAPI()
 
-s3_client = Client()
+s3_client = boto3.client('s3')
 
 class RequestPayload(BaseModel):
     local_filename: str
@@ -183,10 +183,7 @@ def invocations(payload: RequestPayload):
     s3_key_upload = payload.output_filename
     bucket_name = "video-s3-poc"
     downloaded_file = "inputvideo.mp4"
-    video_data = s3_client.get_object(Bucket=bucket_name, Key=s3_key)["Body"].read()
-    with open(downloaded_file, "wb") as f:
-        f.write(video_data)
-        f.close()
+    s3_client.download_file(bucket_name, s3_key, downloaded_file)
 
     # Call the process_video function and get the result
     output_file = s3_key_upload.split("/")[-1]
