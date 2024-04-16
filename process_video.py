@@ -28,8 +28,11 @@ import time
 import traceback
 import json
 import uvicorn
+from boto3.s3 import Client
 
 app = FastAPI()
+
+s3_client = Client()
 
 class RequestPayload(BaseModel):
     local_filename: str
@@ -155,11 +158,6 @@ def process_video(local_filename: str, output_filename: str):
     downfromup.compile(loss='mse', optimizer='Adam')
 
     try:
-        # Download the MP4 file from S3 to /tmp directory in Lambda
-        local_filename = 'inputvideo.mp4'
-
-        # Process the video (assuming you have a function named convertvideo)
-        output_filename = '/tmp/output.mp4'
         frame = convertvideo(local_filename, downfromup, output_filename, size=(640, 640))
 
         # # Upload the processed video back to S3
@@ -181,12 +179,19 @@ def process_video(local_filename: str, output_filename: str):
 @app.post("/invocations")
 def invocations(payload: RequestPayload):
     # Extract local_filename and output_filename from the request payload
-    local_filename = payload.local_filename
-    output_filename = payload.output_filename
+    s3_key = payload.local_filename
+    s3_key_upload = payload.output_filename
+    bucket_name = "video-s3-poc"
+    downloaded_file = "inputvideo.mp4"
+    video_data = s3_client.get_object(Bucket=bucket_name, Key=s3_key)["Body"].read()
+    with open(downloaded_file, "wb") as f:
+        f.write(video_data)
+        f.close()
 
     # Call the process_video function and get the result
-    result = process_video(local_filename, output_filename)
-
+    output_file = s3_key_upload.split("/")[-1]
+    result = process_video(downloaded_file, output_file)
+    s3_client.upload_file(output_file, bucket_name, s3_key_upload)
     # Return the output_filename as a JSON response
     return JSONResponse({"output_filename": result})
 
