@@ -18,6 +18,8 @@ docker push 055843083853.dkr.ecr.us-west-1.amazonaws.com/fetecr
 
 docker run -it --rm --entrypoint /bin/bash my-sagemaker-model
 
+docker run -it --rm my-sagemaker-model
+
 docker run -it --rm  --entrypoint /bin/bash 055843083853.dkr.ecr.us-west-1.amazonaws.com/fetecr
 
 

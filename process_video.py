@@ -29,6 +29,7 @@ import traceback
 import json
 import uvicorn
 import boto3
+import logging
 
 app = FastAPI()
 
@@ -37,6 +38,17 @@ s3_client = boto3.client('s3')
 class RequestPayload(BaseModel):
     local_filename: str
     output_filename: str
+
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] [Process %(process)d] %(message)s",
+    handlers=[
+        logging.FileHandler("app.log"),
+        logging.StreamHandler()
+    ]
+)
 
 def depth_loss_function(y_true, y_pred, theta=0.1, maxDepthVal=1000.0 / 10.0):
     # vggloss
@@ -110,7 +122,7 @@ def convertvideo(videoname, modelconverter, outname='outname.mp4', size=None):
     while success:
         try:
             success, image = vidcap.read()
-            print(count)
+            logging.info(f"frame count {count}")
             count += 1
             ctr = ctr + 1
             imageU = tf.image.resize_with_pad(image, shapeout[1], shapeout[0] // 2)
@@ -123,13 +135,14 @@ def convertvideo(videoname, modelconverter, outname='outname.mp4', size=None):
                 startflag = 1
             out.write(frame)
             if ctr % (fps) == 0:
-                print(ctr // (fps), '  s  ', time.time() - timein, ' sec per videosecond')
+                # logging.info(ctr // (fps), '  s  ', time.time() - timein, ' sec per videosecond')
+                logging.info("%d s %.2f sec per videosecond", ctr // fps, time.time() - timein)
                 timein = time.time()
                 # break
             # if ctr==10:
             #  break
         except:
-            print(print(traceback.format_exc()))
+            logging.error(print(traceback.format_exc()))
             break
     vidcap.release()
     out.release()
@@ -148,7 +161,7 @@ def convertimage(imagepath, converter):
     return img[0, :, :, :], predictedimage[0, :, :, :].clip(0, 255)
 
 
-def process_video(local_filename: str, output_filename: str):
+def processvideo(local_filename: str, output_filename: str):
     linkurl = 'http://aidle.org/js/nns/nonsymmdensenet2_freezed640_0.072_01-0.063.h5'
     Ans = urllib.request.urlretrieve(linkurl, 'nueral2d3d.h5')
     BilinearUpSampling2D = tf.keras.layers.UpSampling2D(size=(2, 2), data_format=None, interpolation='bilinear')
@@ -167,28 +180,32 @@ def process_video(local_filename: str, output_filename: str):
         #     'statusCode': 200,
         #     'body': 'Video processed and uploaded successfully'
         # }
-        print('processed')
+        logging.info('video processed')
     except Exception as e:
         # return {
         #     'statusCode': 400,
         #     'body': str(e)
         # }
-        print(str(e))
+        logging.info(str(e))
 
 
 @app.post("/invocations")
 def invocations(payload: RequestPayload):
-    # Extract local_filename and output_filename from the request payload
-    s3_key = payload.local_filename
-    s3_key_upload = payload.output_filename
-    bucket_name = "video-s3-poc"
-    downloaded_file = "inputvideo.mp4"
-    s3_client.download_file(bucket_name, s3_key, downloaded_file)
+    directory = "/app"
+    for filename in os.listdir(directory):
+        logging.info(f"file in {directory}: {filename}")
+        if filename.endswith(".mp4"):
+            filepath = os.path.join(directory, filename)
+            os.remove(filepath)
+            print(f"Deleted {filepath}")
+    downloadfile_key = payload.local_filename #asdasd.mp4
+    uploadfile_key = payload.output_filename #asdasd-converted.mp4
+    input_bucket_name = "2dvideouploadbucket"
+    output_bucket_name = "video-s3-poc"
 
-    # Call the process_video function and get the result
-    output_file = s3_key_upload.split("/")[-1]
-    result = process_video(downloaded_file, output_file)
-    s3_client.upload_file(output_file, bucket_name, s3_key_upload)
+    s3_client.download_file(input_bucket_name, downloadfile_key, downloadfile_key)
+    result = processvideo(downloadfile_key, uploadfile_key)
+    s3_client.upload_file(uploadfile_key, output_bucket_name, uploadfile_key)
     # Return the output_filename as a JSON response
     return JSONResponse({"output_filename": result})
 
@@ -199,6 +216,15 @@ async def ping():
     # Return an HTTP status code of 200 and an empty response body
     return {"status": "healthy"}
 
+
+@app.get("/files")
+def list_files():
+    """
+    Endpoint to list the files in the current directory.
+    """
+    current_dir = os.getcwd()
+    files = os.listdir(current_dir)
+    return {"files": files}
 
 if __name__ == "__main__":
     uvicorn.run("process_video:app", host="0.0.0.0", port=8080)
