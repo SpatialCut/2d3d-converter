@@ -38,6 +38,7 @@ s3_client = boto3.client('s3')
 class RequestPayload(BaseModel):
     local_filename: str
     output_filename: str
+    lambda_request_id: str
 
 
 # Configure logging
@@ -106,7 +107,9 @@ def creategif(img):
     return 0
 
 
-def convertvideo(videoname, modelconverter, outname='outname.mp4', size=None):
+def convertvideo(videoname, modelconverter, outname, size=None):
+    logging.info(f"inputfilename: {videoname}")
+    logging.info(f"outputfilename: {outname}")
     vidcap = cv2.VideoCapture(videoname)
     success, image = vidcap.read()
     fourcc = cv2.VideoWriter_fourcc(*'MP4V')
@@ -135,14 +138,13 @@ def convertvideo(videoname, modelconverter, outname='outname.mp4', size=None):
                 startflag = 1
             out.write(frame)
             if ctr % (fps) == 0:
-                # logging.info(ctr // (fps), '  s  ', time.time() - timein, ' sec per videosecond')
-                logging.info("%d s %.2f sec per videosecond", ctr // fps, time.time() - timein)
+                logging.info("%d s %.2f sec per videosecond", ctr // int(fps), time.time() - timein)
                 timein = time.time()
                 # break
             # if ctr==10:
             #  break
         except:
-            logging.error(print(traceback.format_exc()))
+            logging.error(traceback.format_exc())
             break
     vidcap.release()
     out.release()
@@ -161,32 +163,23 @@ def convertimage(imagepath, converter):
     return img[0, :, :, :], predictedimage[0, :, :, :].clip(0, 255)
 
 
+# initiate model
+linkurl = 'http://aidle.org/js/nns/nonsymmdensenet2_freezed640_0.072_01-0.063.h5'
+Ans = urllib.request.urlretrieve(linkurl, 'nueral2d3d.h5')
+BilinearUpSampling2D = tf.keras.layers.UpSampling2D(size=(2, 2), data_format=None, interpolation='bilinear')
+custom_objects = {'BilinearUpSampling2D': BilinearUpSampling2D, 'depth_loss_function': depth_loss_function, 'ssim_loss': ssim_loss}
+downfromup = tf.keras.models.load_model('nueral2d3d.h5', custom_objects=custom_objects)
+downfromup.compile(loss='mse', optimizer='Adam')
+
+
 def processvideo(local_filename: str, output_filename: str):
-    linkurl = 'http://aidle.org/js/nns/nonsymmdensenet2_freezed640_0.072_01-0.063.h5'
-    Ans = urllib.request.urlretrieve(linkurl, 'nueral2d3d.h5')
-    BilinearUpSampling2D = tf.keras.layers.UpSampling2D(size=(2, 2), data_format=None, interpolation='bilinear')
-    custom_objects = {'BilinearUpSampling2D': BilinearUpSampling2D, 'depth_loss_function': depth_loss_function,
-                      'ssim_loss': ssim_loss}
-    downfromup = tf.keras.models.load_model('nueral2d3d.h5', custom_objects=custom_objects)
-    downfromup.compile(loss='mse', optimizer='Adam')
-
     try:
+        logging.info(f"start processing {local_filename} to {output_filename}")
         frame = convertvideo(local_filename, downfromup, output_filename, size=(640, 640))
-
-        # # Upload the processed video back to S3
-        # s3.upload_file(output_filename, s3_bucket, 'output/' + s3_key.split('/')[-1])
-
-        # return {
-        #     'statusCode': 200,
-        #     'body': 'Video processed and uploaded successfully'
-        # }
         logging.info('video processed')
     except Exception as e:
-        # return {
-        #     'statusCode': 400,
-        #     'body': str(e)
-        # }
         logging.info(str(e))
+
 
 
 @app.post("/invocations")
@@ -194,10 +187,8 @@ def invocations(payload: RequestPayload):
     directory = "/app"
     for filename in os.listdir(directory):
         logging.info(f"file in {directory}: {filename}")
-        if filename.endswith(".mp4"):
-            filepath = os.path.join(directory, filename)
-            os.remove(filepath)
-            print(f"Deleted {filepath}")
+    lambda_request_id = payload.lambda_request_id
+    logging.info(f"lambda_request_id: {lambda_request_id}")
     downloadfile_key = payload.local_filename #asdasd.mp4
     uploadfile_key = payload.output_filename #asdasd-converted.mp4
     input_bucket_name = "2dvideouploadbucket"
@@ -206,8 +197,16 @@ def invocations(payload: RequestPayload):
     s3_client.download_file(input_bucket_name, downloadfile_key, downloadfile_key)
     result = processvideo(downloadfile_key, uploadfile_key)
     s3_client.upload_file(uploadfile_key, output_bucket_name, uploadfile_key)
-    # Return the output_filename as a JSON response
-    return JSONResponse({"output_filename": result})
+
+
+    filepath = os.path.join(directory, downloadfile_key)
+    os.remove(filepath)
+    logging.info(f"Deleted {filepath}")
+    filepath = os.path.join(directory, uploadfile_key)
+    os.remove(filepath)
+    logging.info(f"Deleted {filepath}")
+
+    return JSONResponse({"output_filename": uploadfile_key})
 
 
 # Define the /ping endpoint
@@ -215,16 +214,6 @@ def invocations(payload: RequestPayload):
 async def ping():
     # Return an HTTP status code of 200 and an empty response body
     return {"status": "healthy"}
-
-
-@app.get("/files")
-def list_files():
-    """
-    Endpoint to list the files in the current directory.
-    """
-    current_dir = os.getcwd()
-    files = os.listdir(current_dir)
-    return {"files": files}
 
 if __name__ == "__main__":
     uvicorn.run("process_video:app", host="0.0.0.0", port=8080)
