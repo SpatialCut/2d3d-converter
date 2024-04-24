@@ -104,6 +104,8 @@ def creategif(img):
   return 0
 
 def convertvideo(videoname, modelconverter, outname, size=None):
+    logging.info(f"inputfilename: {videoname}")
+    logging.info(f"outputfilename: {outname}")
     vidcap = cv2.VideoCapture(videoname)
     success, image = vidcap.read()
     fourcc = cv2.VideoWriter_fourcc(*'MP4V')
@@ -122,7 +124,7 @@ def convertvideo(videoname, modelconverter, outname, size=None):
     while success:
         try:
             success, image = vidcap.read()
-            print(count)
+            logging.info(f"frame count {count}")
             count += 1
             ctr = ctr + 1
 
@@ -143,11 +145,11 @@ def convertvideo(videoname, modelconverter, outname, size=None):
             out.write(frame)
 
             if ctr % (fps) == 0:
-                print(ctr // (fps), ' s ', time.time() - timein, ' sec per videosecond')
+                logging.info("%d s %.2f sec per videosecond", ctr // int(fps), time.time() - timein)
                 timein = time.time()
 
         except:
-            print(print(traceback.format_exc()))
+            logging.error(traceback.format_exc())
             break
 
     vidcap.release()
@@ -178,7 +180,7 @@ downfromup.compile(loss='mse', optimizer='Adam')
 def processvideo(local_filename: str, output_filename: str):
     try:
         logging.info(f"start processing {local_filename} to {output_filename}")
-        frame = convertvideo(local_filename, downfromup, output_filename, size=(640, 640))
+        frame = convertvideo(local_filename, downfromup, output_filename, size=(1280, 720))
         logging.info('video processed')
     except Exception as e:
         logging.info(str(e))

@@ -14,6 +14,7 @@ aws ecr get-login-password --region us-west-1 | docker login --username AWS --pa
 docker build -t my-sagemaker-model .
 
 docker tag my-sagemaker-model 055843083853.dkr.ecr.us-west-1.amazonaws.com/fetecr
+
 docker push 055843083853.dkr.ecr.us-west-1.amazonaws.com/fetecr
 
 docker run -it --rm --entrypoint /bin/bash my-sagemaker-model
