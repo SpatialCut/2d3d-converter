@@ -180,7 +180,7 @@ downfromup.compile(loss='mse', optimizer='Adam')
 def processvideo(local_filename: str, output_filename: str):
     try:
         logging.info(f"start processing {local_filename} to {output_filename}")
-        frame = convertvideo(local_filename, downfromup, output_filename, size=(1280, 720))
+        frame = convertvideo(local_filename, downfromup, output_filename, size=(960, 540))
         logging.info('video processed')
     except Exception as e:
         logging.info(str(e))
