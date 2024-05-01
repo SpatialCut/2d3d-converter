@@ -34,5 +34,14 @@
   - Instance type: ml.g4dn.xlarge
 
 ## create SageMaker endpoint
+
+### create from console
+
 - name: 2d3dmlg4
 - endpoint comfiguratin: as the one above
+
+### use aws cli
+
+- aws sagemaker list-endpoints
+- aws sagemaker create-endpoint --endpoint-name 2d3dmlg4 --endpoint-config-name 2d3dgpumlp3-2
+- aws sagemaker delete-endpoint --endpoint-name 2d3dmlg4
