@@ -24,6 +24,9 @@
 
 - docker system prune -f
 
+- docker cp ForBiggerMeltdowns.mp4 1793505e8008:/app/ForBiggerMeltdowns.mp4
+
+
 
 # SageMaker endpoint set up
 
@@ -45,3 +48,15 @@
 - aws sagemaker list-endpoints
 - aws sagemaker create-endpoint --endpoint-name 2d3dmlg4 --endpoint-config-name 2d3dgpumlp3-2
 - aws sagemaker delete-endpoint --endpoint-name 2d3dmlg4
+
+
+### EC2
+
+- scp -i "/Users/feiwu/Downloads/oldmodelssh.pem" process_video.py requirements.txt ec2-user@13.52.75.190:~
+- 
+
+### NEW: on ec2
+
+- docker build -t my_tf_app .
+
+- docker run -d --rm -p 80:8080   -e AWS_ACCESS_KEY_ID=   -e AWS_SECRET_ACCESS_KEY=  --gpus all   my_tf_app

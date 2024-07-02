@@ -30,6 +30,7 @@ import json
 import uvicorn
 import boto3
 import logging
+import subprocess
 
 app = FastAPI()
 
@@ -50,6 +51,25 @@ logging.basicConfig(
         logging.StreamHandler()
     ]
 )
+
+def extract_audio(video_path, audio_path):
+    logging.info(f"Extracting audio from {video_path} to {audio_path}")
+    command = f"ffmpeg -i {video_path} -q:a 0 -map a {audio_path} -y"
+    result = subprocess.run(command, shell=True)
+    if result.returncode != 0:
+        logging.error(f"Failed to extract audio from {video_path}")
+    else:
+        logging.info(f"Successfully extracted audio to {audio_path}")
+
+def combine_audio_video(audio_path, video_path, output_path):
+    logging.info(f"Combining {audio_path} and {video_path} into {output_path}")
+    command = f"ffmpeg -i {video_path} -i {audio_path} -c:v copy -c:a aac -strict experimental {output_path} -y"
+    result = subprocess.run(command, shell=True)
+    if result.returncode != 0:
+        logging.error(f"Failed to combine audio and video into {output_path}")
+    else:
+        logging.info(f"Successfully combined audio and video into {output_path}")
+
 
 def depth_loss_function(y_true, y_pred, theta=0.1, maxDepthVal=1000.0/10.0):
     #vggloss
@@ -106,6 +126,13 @@ def creategif(img):
 def convertvideo(videoname, modelconverter, outname, size=None):
     logging.info(f"inputfilename: {videoname}")
     logging.info(f"outputfilename: {outname}")
+
+    audio_path = f"{outname}_extracted_audio.aac"
+    temp_video_path = f"{outname}_temp_video.mp4"
+
+    # Extract audio from the original video
+    extract_audio(videoname, audio_path)
+
     vidcap = cv2.VideoCapture(videoname)
     success, image = vidcap.read()
     fourcc = cv2.VideoWriter_fourcc(*'MP4V')
@@ -139,7 +166,7 @@ def convertvideo(videoname, modelconverter, outname, size=None):
             frame = np.concatenate([U, D * 255], 0).astype(np.uint8)
 
             if startflag == 0:
-                out = cv2.VideoWriter(outname, fourcc, int(fps), (int(frame.shape[1]), int(frame.shape[0])))
+                out = cv2.VideoWriter(temp_video_path, fourcc, int(fps), (int(frame.shape[1]), int(frame.shape[0])))
                 startflag = 1
 
             out.write(frame)
@@ -154,6 +181,23 @@ def convertvideo(videoname, modelconverter, outname, size=None):
 
     vidcap.release()
     out.release()
+
+    combine_audio_video(audio_path, temp_video_path, outname)
+
+    # Cleanup temporary files
+    logging.info(f"Cleaning up temporary files: {audio_path} and {temp_video_path}")
+    try:
+        os.remove(audio_path)
+        logging.info(f"Successfully deleted {audio_path}")
+    except Exception as e:
+        logging.error(f"Failed to delete {audio_path}: {str(e)}")
+
+    try:
+        os.remove(temp_video_path)
+        logging.info(f"Successfully deleted {temp_video_path}")
+    except Exception as e:
+        logging.error(f"Failed to delete {temp_video_path}: {str(e)}")
+
     return frame
 
 def convertimage(imagepath, converter):
@@ -196,8 +240,8 @@ def invocations(payload: RequestPayload):
     logging.info(f"lambda_request_id: {lambda_request_id}")
     downloadfile_key = payload.local_filename #asdasd.mp4
     uploadfile_key = payload.output_filename #asdasd-converted.mp4
-    input_bucket_name = "2dvideouploadbucket"
-    output_bucket_name = "video-s3-poc"
+    input_bucket_name = "oldworkflow-video-upload"
+    output_bucket_name = "oldworkflow-video-output"
 
     s3_client.download_file(input_bucket_name, downloadfile_key, downloadfile_key)
     result = processvideo(downloadfile_key, uploadfile_key)
