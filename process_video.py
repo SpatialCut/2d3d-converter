@@ -126,64 +126,53 @@ def creategif(img):
 def convertvideo(videoname, modelconverter, outname, size=None):
     logging.info(f"inputfilename: {videoname}")
     logging.info(f"outputfilename: {outname}")
-
     audio_path = f"{outname}_extracted_audio.aac"
     temp_video_path = f"{outname}_temp_video.mp4"
-
     # Extract audio from the original video
     extract_audio(videoname, audio_path)
-
     vidcap = cv2.VideoCapture(videoname)
     success, image = vidcap.read()
     fourcc = cv2.VideoWriter_fourcc(*'MP4V')
-
+    
+    # Changed shape calculation: multiply width by 2 instead of height
     if size == None:
-        shapeout = (int(np.ceil(image.shape[1] / 32) * 32), int(np.ceil(image.shape[0] / 32) * 32) * 2)
+        shapeout = (int(np.ceil(image.shape[1] / 32) * 32) * 2, int(np.ceil(image.shape[0] / 32) * 32))
     else:
-        shapeout = (size[0] // 32 * 32, size[1] // 32 * 32 * 2)
-
+        shapeout = (size[0] // 32 * 32 * 2, size[1] // 32 * 32)  # Multiply width by 2
+    
     fps = vidcap.get(cv2.CAP_PROP_FPS)
     startflag = 0
     count = 0
     ctr = 0
     timein = time.time()
-
     while success:
         try:
             success, image = vidcap.read()
             logging.info(f"frame count {count}")
             count += 1
             ctr = ctr + 1
-
-            imageU = tf.image.resize_with_pad(image, shapeout[1] // 2, shapeout[0])
+            # Changed resize dimensions to match new shape
+            imageU = tf.image.resize_with_pad(image, shapeout[1], shapeout[0] // 2)
             U = imageU
             CC = np.expand_dims(np.transpose(np.indices((U.shape[0], U.shape[1])) / U.shape[0], (1, 2, 0)), 0)
             D = modelconverter.predict([np.stack([U / 255]), CC])[0, :, :, :].clip(0, 1)
-            #  D = D * 2.0  # Increase the depth range by multiplying with a factor
-            # D = np.exp(D)  # Apply an exponential scaling function to the depth values
-            # D = cv2.bilateralFilter(D, 9, 75, 75)  # Apply bilateral filtering to the depth map
-
-            frame = np.concatenate([U, D * 255], 0).astype(np.uint8)
-
+            
+            # Changed concatenation axis from 0 to 1 for side-by-side
+            frame = np.concatenate([U, D * 255], 1).astype(np.uint8)
+            
             if startflag == 0:
                 out = cv2.VideoWriter(temp_video_path, fourcc, int(fps), (int(frame.shape[1]), int(frame.shape[0])))
                 startflag = 1
-
             out.write(frame)
-
             if ctr % (fps) == 0:
                 logging.info("%d s %.2f sec per videosecond", ctr // int(fps), time.time() - timein)
                 timein = time.time()
-
         except:
             logging.error(traceback.format_exc())
             break
-
     vidcap.release()
     out.release()
-
     combine_audio_video(audio_path, temp_video_path, outname)
-
     # Cleanup temporary files
     logging.info(f"Cleaning up temporary files: {audio_path} and {temp_video_path}")
     try:
@@ -191,13 +180,11 @@ def convertvideo(videoname, modelconverter, outname, size=None):
         logging.info(f"Successfully deleted {audio_path}")
     except Exception as e:
         logging.error(f"Failed to delete {audio_path}: {str(e)}")
-
     try:
         os.remove(temp_video_path)
         logging.info(f"Successfully deleted {temp_video_path}")
     except Exception as e:
         logging.error(f"Failed to delete {temp_video_path}: {str(e)}")
-
     return frame
 
 def convertimage(imagepath, converter):
